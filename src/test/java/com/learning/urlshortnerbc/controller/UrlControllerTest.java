@@ -1,12 +1,11 @@
 package com.learning.urlshortnerbc.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learning.urlshortnerbc.dto.ShortenRequest;
 import com.learning.urlshortnerbc.dto.ShortenResponse;
 import com.learning.urlshortnerbc.service.UrlShortenerService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -20,7 +19,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class UrlControllerTest {
 
     @Autowired private MockMvc mockMvc;
-    @Autowired private ObjectMapper objectMapper;
     @MockitoBean private UrlShortenerService urlShortenerService;
 
     @Test
@@ -30,7 +28,7 @@ class UrlControllerTest {
 
         mockMvc.perform(post("/api/urls")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new ShortenRequest("https://example.com"))))
+                        .content("{\"longUrl\":\"https://example.com\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.shortCode").value("aB3kLp"))
                 .andExpect(jsonPath("$.shortUrl").value("http://localhost:8080/aB3kLp"))
