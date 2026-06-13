@@ -2,15 +2,20 @@ package com.learning.urlshortnerbc.integration;
 
 import com.learning.urlshortnerbc.dto.ShortenRequest;
 import com.learning.urlshortnerbc.dto.ShortenResponse;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.DefaultUriBuilderFactory;
+
+import java.net.http.HttpClient;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -37,8 +42,19 @@ class UrlShortenerIntegrationTest {
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
     }
 
-    @Autowired
-    private TestRestTemplate restTemplate;
+    @LocalServerPort
+    private int port;
+
+    private RestTemplate restTemplate;
+
+    @BeforeEach
+    void setUp() {
+        HttpClient httpClient = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+        restTemplate = new RestTemplate(new JdkClientHttpRequestFactory(httpClient));
+        restTemplate.setUriTemplateHandler(new DefaultUriBuilderFactory("http://localhost:" + port));
+    }
 
     @Test
     void shorten_thenRedirect_endToEndFlow() {
@@ -54,7 +70,7 @@ class UrlShortenerIntegrationTest {
         assertThat(body.shortUrl()).contains(body.shortCode());
         assertThat(body.longUrl()).isEqualTo("https://example.com/very/long/path");
 
-        // TestRestTemplate does NOT follow redirects — we get the 302 directly
+        // RestTemplate is configured to NOT follow redirects — we get the 302 directly
         ResponseEntity<Void> redirectResp = restTemplate.getForEntity(
                 "/" + body.shortCode(), Void.class);
 
@@ -91,7 +107,6 @@ class UrlShortenerIntegrationTest {
 
     @Test
     void redirect_cacheHit_resolvesSameUrl() {
-        // First call populates cache; second call should hit Redis (same result)
         ResponseEntity<ShortenResponse> createResp = restTemplate.postForEntity(
                 "/api/urls", new ShortenRequest("https://example.com/cached"), ShortenResponse.class);
         String shortCode = createResp.getBody().shortCode();
