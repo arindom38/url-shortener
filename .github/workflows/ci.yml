@@ -1,0 +1,53 @@
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run tests with coverage check
+        run: ./mvnw verify
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          REPORT=target/site/jacoco/jacoco.xml
+          if [ ! -f "$REPORT" ]; then
+            echo "### Coverage report not found" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+          MISSED=$(grep -oP 'type="INSTRUCTION"[^/]*/>' "$REPORT" | tail -1 | grep -oP 'missed="\K[0-9]+')
+          COVERED=$(grep -oP 'type="INSTRUCTION"[^/]*/>' "$REPORT" | tail -1 | grep -oP 'covered="\K[0-9]+')
+          TOTAL=$((MISSED + COVERED))
+          PCT=$(awk "BEGIN { printf \"%.1f\", ($COVERED / $TOTAL) * 100 }")
+          echo "### Test Coverage: ${PCT}% (threshold: 80%)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Instructions covered | $COVERED / $TOTAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage | ${PCT}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Required | 80% |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload JaCoCo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
